@@ -22,6 +22,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Guardián de tokens de diseño (§7)
+        run: npm run design:check
       - name: Guardián de licencias
         run: npm run licenses:check
       - name: Avisos de terceros al día

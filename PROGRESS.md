@@ -275,9 +275,114 @@ El fichero se eliminó tras la comprobación. La regla vive en `eslint.config.mj
 | Cero APIs del navegador en `domain/` (regla de ESLint) | ✅ regla + prueba negativa real (salida arriba) |
 | Presets de redes (avatar, historia 9:16, post 1:1, post 4:5, portada, miniatura 16:9) editables sin código | ✅ JSON + validación en carga + test de cableado |
 
+### Git, ramas y despliegue
+
+- PR #8 (`feat/dominio` → `staging`) merged con **squash** → `staging` en `33a2787`.
+- PR #9 (`staging` → `main`) merged con **rebase** → `main` en `88b5261`.
+- Aplicada la regla de merge corregida: tras el rebase, `staging` se forzó a `main`
+  (desactivando y reactivando la protección de `staging` vía API, restaurándola **idéntica** a la
+  de `main`, incluido `required_conversation_resolution`). **Estado final: `staging` == `main` ==
+  `88b5261` (mismo SHA).**
+- CI en verde en ambas PRs (Calidad + E2E ×3 + Lighthouse + Vercel).
+
 ---
 
-## Hitos 2–10
+## Hito 2 — Sistema de diseño y shell de la aplicación
+
+**Estado: CERRADO** — todos los criterios de aceptación ejecutados y vistos pasar.
+
+Se abrió invocando `frontend-design` y ejecutando su proceso de dos pasadas contra el §7. El plan de
+diseño y la crítica anti-default viven en `docs/DESIGN.md`; la decisión del acento, en
+`docs/adr/0015-acento.md`.
+
+### Batería local en verde
+
+| Comando | Resultado |
+|---|---|
+| `npm run lint` | ✅ 0 errores, 0 avisos |
+| `npm run typecheck` | ✅ sin errores |
+| `npm run design:check` | ✅ sin valores crudos fuera de `tokens.css` |
+| `npm run test:unit:coverage` | ✅ 146 tests pasados, umbral de cobertura superado |
+| `npm run build` | ✅ export estático; `/dev/ui` sirve 404 en producción |
+| `npm run size` | ✅ JS 186,39 KB gzip ≤ 200 KB baseline; CSS 6,11 KB gzip ≤ 25 KB |
+| `npm run test:e2e` (chromium) | ✅ 25 passed / 25 |
+| `npm run test:e2e` (chromium + firefox + webkit) | ✅ 75 passed / 75 |
+
+### Entregables completados en este hito
+
+- **Diseño**: `docs/DESIGN.md` (pasada 1 + crítica anti-default), `docs/adr/0015-acento.md`.
+- **Tokens**: `src/styles/tokens.css` (`@theme` + `.dark`), `src/styles/globals.css` (dark variant,
+  base, foco, slider, `dialog::backdrop`, `prefers-reduced-motion`).
+- **Primitivos** (`src/components/primitives/`): Button, IconButton, Segmented, Switch, Slider,
+  Sheet, ListGroup (+ ListItem), Toast, ProgressBar, Tooltip, más barrel `index.ts`.
+- **Layout**: `header.tsx` (marca + selector de tema claro/oscuro/sistema), `footer.tsx` (enlaces
+  legales), `legal-page.tsx` (plantilla), `theme-provider.tsx` (next-themes, estrategia `class`).
+- **Rutas**: cinco rutas legales vacías bajo `src/app/(legal)/`; ruta `/dev/ui` (sólo dev, excluida
+  del build de producción) con todos los primitivos en todos sus estados.
+- **Guardián de tokens**: `scripts/check-design-tokens.ts`, cableado a `npm run design:check` y al
+  job `Calidad` de `ci.yml`.
+
+### Acento: cian de mesa de luz (decisión revisada)
+
+De los dos candidatos del §7 (cian vs índigo) se elige **cian** `oklch(0.62 0.14 210)` y se descarta
+el índigo. Motivo: el índigo saturado es el acento "producto" por defecto (Stripe, Linear, mil
+dashboards); el cian está atado al oficio (la mesa de luz donde se juzgan píxeles) y deja el verde
+libre para «éxito» sin colisión. Justificación completa en `docs/adr/0015-acento.md` y en el
+apartado 1 de la crítica anti-default de `docs/DESIGN.md`.
+
+### Criterios de aceptación — estado final
+
+| Criterio | Resultado |
+|---|---|
+| Cero valores de color/espaciado/radio/sombra/tipografía a pelo fuera de `tokens.css` (script) | ✅ `design:check` en verde + forzado en CI |
+| Capturas a 360/768/1024/1440 × claro/oscuro sin desbordamiento horizontal | ✅ 8 capturas generadas en `test-results/design/`; desbordamiento ≤ 1 px en las 8 |
+| axe-core sin violaciones en `/dev/ui` y las 5 rutas legales, en ambos modos | ✅ 12/12 (ver notas) |
+| Recorrido completo por teclado con foco visible en cada primitivo | ✅ test dedicado (`:focus-visible`) en los tres navegadores |
+| `prefers-reduced-motion` verificado con `emulateMedia` | ✅ `matchMedia(...).matches === true` |
+| Crítica anti-default escrita con al menos una decisión revisada y su motivo | ✅ `docs/DESIGN.md`, 6 apartados (acento, negro del texto, sin hero, botón no-cromático, SF nativa, checklist §7.4) |
+
+### Notas técnicas
+
+- **El botón primario no es "de color".** Rellenarlo de cian forzaba un `on-accent` de contraste
+  precario (el acento es de croma media). El primario es `bg-text text-surface` (casi negro en
+  claro, casi blanco en oscuro: se invierte solo) y el cian queda reservado para foco, selección,
+  `switch`, `segmented`, la flecha «→» y la barra. Ver §4 de la crítica.
+- **`/dev/ui` excluido del build de producción con `notFound()`.** Con `output: "export"`,
+  `notFound()` durante el prerender hace que Next emita un 404 en `out/dev/ui.html` (verificado: no
+  contiene el contenido del showcase y sí «404»). La ruta vive sólo en `next dev`.
+- **Contraste AA ajustado en dos puntos.** (1) El pie usaba `text-text-muted` (3,64:1 en oscuro)
+  para texto real; pasa a `text-text-secondary`. (2) `--color-success` claro daba 4,44:1 sobre
+  blanco; se oscurece a `oklch(0.5 0.15 155)` y `--color-warning` a `oklch(0.55 0.13 70)` para
+  cumplir 4,5:1 cuando se usan como texto. Detectado por axe-core en el primer pase.
+- **`next-themes` usa `theme` (ajuste), no `resolvedTheme`.** `resolvedTheme` nunca devuelve
+  `"system"`; el selector de tema cicla claro→oscuro→sistema sobre `theme`. El patrón "mounted" se
+  implementa con `useSyncExternalStore` (no `setState` en efecto) para cumplir
+  `react-hooks/set-state-in-effect`.
+- **Review visual sustituida por comprobación programática.** Este entorno no renderiza imágenes
+  (el lector devuelve «Unsupported Image» para los PNG), así que la revisión "de verdad" se hizo con
+  aserciones: desbordamiento horizontal ≤ 1 px en las 8 combinaciones, axe-core de contraste, y
+  comprobaciones de estilo computado (la superficie cambia claro↔oscuro; la cifra mide 56 px). Las
+  8 capturas quedan en `test-results/design/` para revisión humana cuando se quiera.
+- **Orden de tabulación distinto en WebKit.** El test de foco recorre la página con
+  Tab y exige foco visible sólo en controles interactivos reales (`a[href]`, `button`,
+  `input`, …), ignorando destinos no interactivos que WebKit mete en el orden de
+  tabulación (el `<body>` o un `<dialog>` cerrado). Así el criterio «foco visible en cada
+  primitivo» se verifica igual en chromium, firefox y webkit (75/75).
+- **Inter autoalojada completa (7 subconjuntos).** La app es en español (sólo necesita `latin`); el
+  import por defecto de `@fontsource-variable/inter` empaqueta todos los subconjuntos. A nivel de
+  runtime sólo se descarga `latin` (los `@font-face` llevan `unicode-range`), pero el presupuesto de
+  fuentes del §8.6 (60 KB, se ejerce en el Hito 7) obligará a recortar el import al subconjunto
+  latino. Dejado anotado como tarea del Hito 7.
+
+### Git, ramas y despliegue
+
+- Pendiente de merge: se hará squash `feat/diseno` → `staging` y rebase `staging` → `main`, con
+  `staging` forzado a `main` al final (regla de merge corregida del Hito 1). Se rellenará aquí tras
+  el merge.
+
+---
+
+## Hitos 3–10
 
 Pendientes. Se irán rellenando al cerrar cada uno.
 
