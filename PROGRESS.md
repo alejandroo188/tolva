@@ -138,6 +138,12 @@ x-robots-tag: noindex
   `tolva-git-staging-alejandroo188.vercel.app`, pero el scope real de Vercel es
   `alejandroo188s-projects` (con «s»). La URL estable de staging es por tanto
   `tolva-git-staging-alejandroo188s-projects.vercel.app`. Sin impacto funcional; se documenta.
+- **Squash en `staging`→`main` rompe la historia lineal (incidente y corrección).** El squash-merge
+  de la PR #2 (`staging`→`main`) creó en `main` un commit distinto del de `staging` (mismo contenido,
+  otro SHA), de modo que `main` y `staging` divergieron y la PR #4 quedó en `CONFLICTING`. Corrección:
+  se rebasó `staging` sobre `main` y se forzó el push (temporalmente, desactivando y reactivando la
+  protección de `staging` vía API, y restaurándola idéntica). Regla de ahora en adelante, recogida en
+  `CONTRIBUTING.md`: **feature→staging con squash; `staging`→`main` con rebase (nunca squash)**.
 
 ### Entregables completados en este hito
 
