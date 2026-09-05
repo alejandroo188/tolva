@@ -1,6 +1,6 @@
 [
   {
-    "name": "JS estático (baseline Hito 0)",
+    "name": "JS estático (baseline interino — se reduce a 130 KB en el Hito 7)",
     "path": ["out/_next/static/**/*.js"],
     "limit": "200 KB",
     "gzip": true

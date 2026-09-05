@@ -61,13 +61,18 @@ function run(): number {
     }
   }
 
-  const wasm = files.filter((f) => f.endsWith(".wasm"));
+  // Los .wasm de `out/codecs/` se sirven como assets estáticos y se cargan de
+  // forma diferida (sólo cuando se pide su formato). El presupuesto de carga
+  // inicial exige 0 bytes de .wasm *en el bundle*, no en la carpeta de códecs
+  // perezosos (§8.6; el E2E nº 9 lo verifica en runtime).
+  const codecDir = join(OUT, "codecs");
+  const wasm = files.filter((f) => f.endsWith(".wasm") && !f.startsWith(codecDir + "/"));
   if (wasm.length > 0) {
     failures.push(
-      `WASM en el build estático (${wasm.length} ficheros). El presupuesto de carga inicial exige 0 bytes de .wasm.`,
+      `WASM en el bundle estático (${wasm.length} ficheros fuera de out/codecs/). El presupuesto de carga inicial exige 0 bytes de .wasm.`,
     );
   } else {
-    console.log("✓ Sin ficheros .wasm en el build.");
+    console.log("✓ Sin ficheros .wasm en el bundle (los códecs perezosos quedan en out/codecs/).");
   }
 
   if (failures.length > 0) {

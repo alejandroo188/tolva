@@ -19,7 +19,9 @@ import { extname, join, relative, resolve } from "node:path";
 import process from "node:process";
 
 const SRC = resolve(process.cwd(), "src");
-const EXCLUDED_FILES = new Set(["tokens.css"]);
+// `tokens.css` es la fuente de los tokens; `watermark.ts` centraliza colores de
+// render sobre `OffscreenCanvas` (no son estilos de UI), por eso ambos se excluyen.
+const EXCLUDED_FILES = new Set(["tokens.css", "watermark.ts"]);
 
 type Violation = { file: string; line: number; reason: string };
 

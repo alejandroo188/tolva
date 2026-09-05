@@ -6,7 +6,10 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "codecs:copy": "node scripts/copy-codecs.ts",
+    "predev": "npm run codecs:copy",
     "dev": "next dev",
+    "prebuild": "npm run codecs:copy",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -27,6 +30,7 @@
     "lhci": "lhci autorun",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "postinstall": "patch-package && npm run codecs:copy",
     "prepare": "husky"
   },
   "dependencies": {
@@ -73,6 +77,7 @@
     "husky": "9.1.7",
     "license-checker-rseidelsohn": "5.0.1",
     "lint-staged": "17.5.0",
+    "patch-package": "^8.0.0",
     "prettier": "3.9.6",
     "serve": "14.2.6",
     "size-limit": "13.0.3",
