@@ -19,6 +19,9 @@
 /.next/
 /out/
 
+# códecs WASM copiados desde node_modules (regenerados por `codecs:copy`)
+/public/codecs/
+
 # production
 /build
 
