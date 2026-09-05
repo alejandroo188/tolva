@@ -376,9 +376,13 @@ apartado 1 de la crítica anti-default de `docs/DESIGN.md`.
 
 ### Git, ramas y despliegue
 
-- Pendiente de merge: se hará squash `feat/diseno` → `staging` y rebase `staging` → `main`, con
-  `staging` forzado a `main` al final (regla de merge corregida del Hito 1). Se rellenará aquí tras
-  el merge.
+- PR #10 (`feat/diseno` → `staging`) merged con **squash** → `staging` en `b513895`.
+- PR #11 (`staging` → `main`) merged con **rebase** → `main` en `2f41ab8`.
+- Aplicada la regla de merge corregida: tras el rebase, `staging` se forzó a `main`
+  (desactivando y reactivando la protección de `staging` vía API, restaurándola **idéntica** a la
+  de `main`, incluido `required_conversation_resolution`). **Estado final: `staging` == `main` ==
+  `2f41ab8` (mismo SHA).**
+- CI en verde en ambas PRs (Calidad + E2E ×3 + Lighthouse + Vercel).
 
 ---
 
