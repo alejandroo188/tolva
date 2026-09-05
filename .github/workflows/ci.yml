@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+
+jobs:
+  calidad:
+    name: Calidad (lint · typecheck · licencias · unit · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Guardián de licencias
+        run: npm run licenses:check
+      - name: Avisos de terceros al día
+        run: npm run notices:check
+      - name: Tests unitarios
+        run: npm run test:unit
+      - name: Build estático
+        run: npm run build
+      - name: Presupuesto de bundle
+        run: npm run size
+
+  e2e:
+    name: E2E (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Instalar navegadores
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Playwright
+        run: npm run test:e2e -- --project=${{ matrix.browser }}
+      - name: Subir reporte
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 14

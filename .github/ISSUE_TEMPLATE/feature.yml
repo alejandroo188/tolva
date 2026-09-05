@@ -1,0 +1,33 @@
+name: Sugerencia de funcionalidad
+description: Propón una mejora o una funcionalidad nueva.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema que resuelve
+      description: Qué necesidad cubre hoy mal o no cubre.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Propuesta
+      description: Cómo te gustaría que funcionara.
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+      description: Otras formas de resolverlo que hayas valorado.
+    validations:
+      required: false
+  - type: checkboxes
+    id: cliente
+    attributes:
+      label: Alcance
+      options:
+        - label: Debe seguir procesándose 100% en el cliente (sin servidor)
+          required: true

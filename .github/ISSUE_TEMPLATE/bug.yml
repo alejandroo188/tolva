@@ -1,0 +1,46 @@
+name: Informe de error
+description: Describe un error reproducible para que podamos corregirlo.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar. Cuanta más información nos des, antes podremos reproducirlo.
+  - type: textarea
+    id: descripcion
+    attributes:
+      label: Descripción
+      description: Qué esperabas que pasara y qué pasó en su lugar.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducir
+      placeholder: |
+        1. Ve a…
+        2. Suelta un fichero…
+        3. Observa…
+    validations:
+      required: true
+  - type: input
+    id: navegador
+    attributes:
+      label: Navegador y sistema
+      placeholder: "p. ej. Chrome 145 en macOS 15, o Firefox 136 en Windows"
+    validations:
+      required: true
+  - type: textarea
+    id: fichero
+    attributes:
+      label: Fichero de ejemplo
+      description: Si el error depende de un fichero concreto, descríbelo (formato, tamaño, dimensiones). No adjuntes material con derechos.
+    validations:
+      required: false
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto adicional
+    validations:
+      required: false

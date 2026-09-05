@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+  <rect width="320" height="180" fill="#123a5c"/>
+  <circle cx="90" cy="90" r="48" fill="#e0b34a"/>
+  <path d="M160 150 L240 30 L300 150 Z" fill="#2f8f6b"/>
+  <text x="20" y="30" font-family="system-ui" font-size="24" fill="#ffffff">Tolva</text>
+</svg>
