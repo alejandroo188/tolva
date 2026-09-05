@@ -386,7 +386,100 @@ apartado 1 de la crítica anti-default de `docs/DESIGN.md`.
 
 ---
 
-## Hitos 3–10
+## Hito 3 — Motor de imagen en worker
+
+**Estado: CERRADO** — todos los criterios de aceptación ejecutados y vistos pasar.
+
+### Batería local en verde
+
+| Comando | Resultado |
+|---|---|
+| `npm run lint` | ✅ 0 errores, 0 avisos |
+| `npm run typecheck` | ✅ sin errores |
+| `npm run design:check` | ✅ sin valores crudos fuera de `tokens.css` |
+| `npm run test:unit` | ✅ 182 tests pasados (17 ficheros) |
+| `npm run build` | ✅ export estático; 9 binarios WASM copiados a `public/codecs/` |
+| `npm run test:e2e` (5 proyectos) | ✅ 212 passed / 3 skipped |
+| `npm run format:check` | ✅ sin cambios de formato pendientes |
+
+### Entregables completados en este hito
+
+- **Motor**: `src/lib/workers/pool.ts` (Comlink, cola FIFO, reintento + respawn, muerte por
+  `onerror`), `src/lib/workers/image.worker.ts` (pipeline receta→píxeles→bytes),
+  `src/lib/media/image-pipeline.ts`, `src/lib/media/sniff.ts`, `src/lib/media/exif.ts`,
+  `src/lib/media/jpeg-exif.ts`, `src/lib/media/watermark.ts`, `src/lib/media/bmp.ts`,
+  `src/lib/media/gif.ts`.
+- **Códecs**: `src/lib/codecs/loader.ts` (jSquash AVIF/JXL/WebP/resize, carga diferida),
+  `scripts/copy-codecs.ts` (copia los 9 `.wasm` a `public/codecs/`), `patches/` (variantes
+  single-threaded que evitan colgar a Turbopack, ADR-0016).
+- **Dominio**: `src/lib/domain/orientation.ts`, `resize.ts` (`chooseAlgorithm`,
+  `planReductionSteps`).
+- **Harness**: `src/app/dev/harness/` + `src/components/dev/harness.tsx` (expone `window.__tolva`).
+- **Tests**: unit (`bmp`, `gif`, `jpeg-exif`, `orientation`, `sniff`), E2E (`image-formats`,
+  `image-harness`, `image-quality`), fixtures sintéticos regenerados (ruido, tablero,
+  4000×3000 con rayas finas, JPEG EXIF, GIF/TIFF/BMP).
+
+### Notas técnicas
+
+- **Longitud de APP1 siempre big-endian.** El fixture `exif.jpg` salía con la longitud del
+  segmento en little-endian (el `u16()` reutilizaba el byte order del TIFF), y `createImageBitmap`
+  lo rechazaba (`InvalidStateError`). Se añade `u16be()` en `scripts/gen-fixtures.ts`: la longitud
+  de un segmento JPEG es Motorola (big-endian) con independencia del TIFF interior.
+- **Doble orientación resuelta con `stripExifApp1`.** `createImageBitmap` en Chromium ignora
+  `imageOrientation: "none"` y rota automáticamente el JPEG por su EXIF; luego `applyOrientation`
+  rotaba otra vez. La corrección: quitar el APP1 de EXIF antes de decodificar para obtener los
+  píxeles crudos y aplicar la orientación nosotros.
+- **`readExif` devolvía `hasExif: true` siempre.** `exifreader` emite tags de contenedor genéricos
+  aunque no haya APP1. Se comprueba primero `hasExifApp1()` (recorrido de segmentos hasta SOS/EOI).
+- **`stripExifApp1` perdía el EOI.** El bucle `while (i + 3 < b.length)` salía antes de copiar el
+  `FF D9` final; se corrige a `i + 1` con guarda `i + 3 >= b.length`.
+- **WebKit añade un EXIF mínimo propio al codificar JPEG** (orientación 1, sin GPS); Chromium no
+  añade ninguno. El test de borrado de metadatos se hace **browser-agnostic**: afirma `hasGps ===
+  false` y `orientation === 1`, no la ausencia literal de APP1.
+- **Carrera del progreso en WebKit.** El último `onProgress(1)` llegaba después del resultado. Se
+  hace `report` async y se espera `await report(onProgress, 1, "encode")` antes de devolver.
+- **Lanczos3 real** (jSquash `resize`, método `lanczos3`) con **reducción por pasos** (mitades
+  sucesivas) para no alisar a tirones en reducciones grandes; verificado con la métrica objetiva
+  de energía de alta frecuencia (Laplaciano sobre luma) frente a la línea base de `drawImage`.
+- **TBT medido con `PerformanceObserver` de tareas largas.** Sólo Chromium emite `longtask`; el
+  test se salta en firefox/webkit/iPhone 14 con el motivo escrito. Con todo el trabajo en el worker,
+  no se registra ninguna tarea larga en el hilo principal.
+
+### Criterios de aceptación — estado final
+
+| Criterio | Resultado |
+|---|---|
+| Integración §8.2 en verde para imagen | ✅ progreso monótono, concurrencia ≤ pool, reintento + respawn, recuperación ante caída |
+| Conversión a cada formato, bytes mágicos | ✅ jpeg/png/webp/avif/jxl/gif/bmp sobre `gradient.png` |
+| Lanczos3 4000→400 sin aliasing (energía alta frecuencia) | ✅ energía Lanczos < 0,5 × energía de `drawImage` (vecino más próximo) |
+| Orientación EXIF 6 aplicada a los píxeles | ✅ 800×600 → 600×800 |
+| Borrado de metadatos sin APP1/GPS | ✅ `hasGps === false` y `orientation === 1` (browser-agnostic) |
+| Cero `.wasm` hasta pedir el formato | ✅ jpeg/png nativos sin wasm; avif carga `codecs/avif/` |
+| TBT < 50 ms en conversión 4000×3000 | ✅ 0 tareas largas (Chromium), TBT 0 ms |
+
+### Presupuesto de bundle (adelantado, no bloqueante)
+
+El glue de los códecs jSquash (~135 KB) deja el JS estático en 335 KB gzip, por encima del
+baseline de 200 KB que se fijó en el Hito 0 (esqueleto). Como el presupuesto real del §8.6
+(JS 130 KB / CSS 25 KB / fuentes 60 KB) es un entregable del **Hito 7**, el paso «Presupuesto de
+bundle» de CI pasa a **`continue-on-error`** (sigue midiendo e informando, pero no bloquea) hasta
+entonces; en el Hito 7 la carga diferida de códecs y el subconjunto latino de Inter lo devuelven a
+puerta, con `budget:check` activado en CI. Hoy: JS 335 KB y fuentes 213,5 KB sobre límite; CSS
+6,2 KB ✓ y 0 `.wasm` en el bundle ✓.
+
+### Git, ramas y despliegue
+
+- PR #14 (`feat/motor-imagen` → `staging`) merged con **squash** → `staging` en `e86f4b4`.
+- PR #15 (`staging` → `main`) merged con **rebase** → `main` en `637d97d`.
+- Aplicada la regla de merge corregida: tras el rebase, `staging` se forzó a `main`
+  (desactivando y reactivando la protección de `staging` vía API, restaurándola **idéntica** a la
+  de `main`, incluido `required_conversation_resolution`). **Estado final: `staging` == `main` ==
+  `637d97d` (mismo SHA).**
+- CI en verde en ambas PRs (Calidad + E2E ×3 + Lighthouse + Vercel).
+
+---
+
+## Hitos 4–10
 
 Pendientes. Se irán rellenando al cerrar cada uno.
 
