@@ -37,6 +37,11 @@ SSPL, BUSL o CC-BY-NC, y ante paquetes sin licencia declarada.
   despliegue de staging → PR de `staging` a `main`.
 - Conventional Commits, forzado por commitlint en `commit-msg`.
 - Historial lineal; `main` y `staging` protegidas (sin push directo).
+- **Estrategia de merge:** `feat/*`·`fix/*`·`docs/*`·`chore/*` → `staging` con **squash**
+  (aplana el trabajo de la rama); `staging` → `main` con **rebase** (nunca squash). Si se hace
+  squash en `staging`→`main`, GitHub reescribe el commit, `main` y `staging` divergen, y el
+  siguiente PR `staging`→`main` da conflicto de historia lineal. Con rebase, `main` avanza
+  en fast-forward y ambas ramas quedan con el mismo contenido.
 
 ## Cerrar un hito
 
