@@ -26,8 +26,8 @@ jobs:
         run: npm run licenses:check
       - name: Avisos de terceros al día
         run: npm run notices:check
-      - name: Tests unitarios
-        run: npm run test:unit
+      - name: Tests unitarios con cobertura (umbral §8.1)
+        run: npm run test:unit:coverage
       - name: Build estático
         run: npm run build
       - name: Presupuesto de bundle
