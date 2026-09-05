@@ -138,6 +138,14 @@ x-robots-tag: noindex
   `tolva-git-staging-alejandroo188.vercel.app`, pero el scope real de Vercel es
   `alejandroo188s-projects` (con «s»). La URL estable de staging es por tanto
   `tolva-git-staging-alejandroo188s-projects.vercel.app`. Sin impacto funcional; se documenta.
+- **Divergencia `main`/`staging` resuelta (regla de merge corregida).** GitHub reescribe el commit en
+  *ambos* merge (squash y rebase), de modo que tras cada `staging`→`main` las dos ramas acaban con
+  el mismo contenido pero distinto SHA, y el siguiente PR `staging`→`main` da «not mergeable». La
+  corrección, recogida en `CONTRIBUTING.md`: **tras cada merge de `staging`→`main`, `staging` debe
+  apuntar al mismo SHA que `main`**; si divergen, se fuerza `staging` = `main` (desactivando y
+  reactivando la protección de `staging` vía API). La causa raíz fue rebasar y force-pushear
+  `staging` a mano, no el squash en sí. **Estado actual: `staging` == `main` == `7fed6f7` (mismo
+  SHA), protección de `staging` restaurada idéntica.**
 
 ### Entregables completados en este hito
 
@@ -169,6 +177,107 @@ x-robots-tag: noindex
 
 ---
 
-## Hitos 1–10
+## Hito 1 — Núcleo de dominio, sin una línea de UI
+
+**Estado: CERRADO** — todos los criterios de aceptación ejecutados y vistos pasar.
+
+### Batería local en verde
+
+| Comando | Resultado |
+|---|---|
+| `npm run lint` | ✅ 0 errores, 0 avisos |
+| `npm run typecheck` | ✅ sin errores |
+| `npm run test:unit:coverage` | ✅ 146 tests pasados (12 ficheros), umbral de cobertura superado |
+| `npm run build` | ✅ export estático (`/`, `/_not-found`) |
+| `npm run test:e2e` (chromium, firefox, webkit) | ✅ 3 passed / 3 |
+
+### Cobertura en `src/lib/domain/**` (≥ 90 % líneas y ramas)
+
+Reporte de `vitest run --coverage` (v8), agregado y por fichero:
+
+```
+File          | % Stmts | % Branch | % Funcs | % Lines
+All files     |   98.22 |    94.85 |     100 |   99.64
+ crop.ts      |     100 |    92.15 |     100 |     100
+ filenames.ts |     100 |    92.59 |     100 |     100
+ geometry.ts  |   95.45 |    96.15 |     100 |     100
+ presets.ts   |   94.87 |    94.87 |     100 |     100
+ recipe.ts    |   96.59 |    92.56 |     100 |   98.61
+```
+
+Todos los ficheros superan el 90 % en líneas **y** ramas. El umbral queda **forzado en CI**:
+el job `Calidad` de `ci.yml` ejecuta `npm run test:unit:coverage` (con `thresholds.lines = 90`
+y `thresholds.branches = 90` en `vitest.config.ts`), no sólo `test:unit`.
+
+### Prueba negativa real de la regla «dominio sin APIs del navegador»
+
+Se añadió temporalmente `src/lib/domain/__negativo__.ts` con `window`, `fetch`, `document` y
+`globalThis`, se ejecutó `eslint` y **falló**; salida pegada:
+
+```
+__negativo__.ts
+  3:17  error  Unexpected use of 'window'      no-restricted-globals
+  4:17  error  Unexpected use of 'fetch'       no-restricted-globals
+  5:18  error  Unexpected use of 'document'    no-restricted-globals
+  6:37  error  Unexpected use of 'globalThis'  no-restricted-globals
+  6:37  error  El dominio debe ser puro ...    no-restricted-syntax
+✖ 5 problems (5 errors, 0 warnings)
+exit=1
+```
+
+El fichero se eliminó tras la comprobación. La regla vive en `eslint.config.mjs`
+(`tolva/domain-sin-browser`, scoped a `src/lib/domain/**/*.ts`).
+
+### Presets de redes — cubiertos y editables sin tocar código
+
+`src/config/social-presets.json` (editado sin tocar TS) cubre los seis obligatorios:
+
+| id | Proporción |
+|---|---|
+| `avatar` | 1:1 |
+| `historia` | 9:16 |
+| `post` | 1:1 |
+| `post-4-5` | 4:5 |
+| `portada` | 3:2 |
+| `miniatura` | 16:9 |
+
+`src/config/video-presets.json` cubre 480p / 720p / 1080p / 4K. Ambos se validan en carga
+(`src/lib/presets.ts`, fail-fast) con `parseSocialPresets` / `parseVideoPresets` de
+`domain/presets.ts`; `tests/unit/presets-loader.test.ts` prueba el cableado real.
+
+### Entregables completados en este hito
+
+- `src/lib/domain/`: `types.ts`, `geometry.ts`, `aspect.ts`, `crop.ts`, `resize.ts`,
+  `filenames.ts`, `bytes.ts`, `presets.ts`, `quality.ts`, `recipe.ts` (puro, sin navegador).
+- `src/lib/capabilities/index.ts` (detección de capacidades con globals inyectados, nunca lanza).
+- `src/config/social-presets.json`, `src/config/video-presets.json`, `src/lib/presets.ts`.
+- `tests/unit/` (12 ficheros, 146 tests) cubriendo los 9 módulos de la §8.1.
+- Regla de ESLint `noBrowserInDomain` y CI con cobertura forzada.
+
+### Notas técnicas
+
+- **`stableStringify` no reordena arrays.** El replacer de `recipe.ts` trataba los arrays como
+  objetos (`isRecord` = `typeof v === "object" && v !== null`), convirtiendo `ops: [...]` en
+  `{"0":…,"1":…}`. Corregido añadiendo `!Array.isArray(value)` a `isRecord`; la serialización
+  estable ordena claves de objeto pero conserva el orden de los arrays.
+- **`ResizeStep` de `interface` a `type`.** Un `interface` sin miembros (`extends Dimensions {}`)
+  disparaba `@typescript-eslint/no-empty-object-type`; se usa un alias `type ResizeStep = Dimensions`.
+- **`oppositeCorner` tipado a asas de esquina.** El `default` del switch era código muerto (sólo se
+  llamaba con esquinas). Se estrecha a un tipo `CornerHandle` con guarda `isCornerHandle`, eliminando
+  la rama muerta y subiendo la cobertura de ramas de `crop.ts`.
+
+### Criterios de aceptación — estado final
+
+| Criterio | Resultado |
+|---|---|
+| Toda la §8.1 escrita y en verde | ✅ 9 módulos + `capabilities/`, 146 tests |
+| Cobertura ≥ 90 % líneas y ramas en `domain/**`, forzada en CI | ✅ 99,64 % líneas / 94,85 % ramas; `test:unit:coverage` en CI |
+| Cero APIs del navegador en `domain/` (regla de ESLint) | ✅ regla + prueba negativa real (salida arriba) |
+| Presets de redes (avatar, historia 9:16, post 1:1, post 4:5, portada, miniatura 16:9) editables sin código | ✅ JSON + validación en carga + test de cableado |
+
+---
+
+## Hitos 2–10
 
 Pendientes. Se irán rellenando al cerrar cada uno.
+

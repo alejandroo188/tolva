@@ -1,0 +1,38 @@
+[
+  {
+    "id": "480p",
+    "label": "480p",
+    "width": 854,
+    "height": 480,
+    "fps": 30,
+    "videoBitrate": 1000000,
+    "audioBitrate": 128000
+  },
+  {
+    "id": "720p",
+    "label": "720p",
+    "width": 1280,
+    "height": 720,
+    "fps": 30,
+    "videoBitrate": 2500000,
+    "audioBitrate": 128000
+  },
+  {
+    "id": "1080p",
+    "label": "1080p",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "videoBitrate": 5000000,
+    "audioBitrate": 192000
+  },
+  {
+    "id": "4k",
+    "label": "4K",
+    "width": 3840,
+    "height": 2160,
+    "fps": 30,
+    "videoBitrate": 12000000,
+    "audioBitrate": 192000
+  }
+]
