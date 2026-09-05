@@ -37,6 +37,14 @@ SSPL, BUSL o CC-BY-NC, y ante paquetes sin licencia declarada.
   despliegue de staging → PR de `staging` a `main`.
 - Conventional Commits, forzado por commitlint en `commit-msg`.
 - Historial lineal; `main` y `staging` protegidas (sin push directo).
+- **Estrategia de merge:** `feat/*`·`fix/*`·`docs/*`·`chore/*` → `staging` con **squash**
+  (aplana el trabajo de la rama); `staging` → `main` con **rebase**. GitHub reescribe el commit
+  en ambos casos (squash *y* rebase), así que la regla que de verdad mantiene `main` y `staging`
+  sincronizadas es ésta: **después de cada merge de `staging`→`main`, `staging` debe apuntar al
+  mismo SHA que `main`**. Si el rebase de GitHub ha reescrito el commit y las ramas han divergido,
+  se fuerza el reset de `staging` a `main` (desactivando y reactivando la protección de `staging`
+  vía API, y restaurándola idéntica). Lo que hay que evitar es tocar `staging` a mano (rebase
+  local + force-push): fue exactamente eso lo que creó la divergencia, no el squash en sí.
 
 ## Cerrar un hito
 

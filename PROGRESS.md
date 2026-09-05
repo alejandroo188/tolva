@@ -138,6 +138,14 @@ x-robots-tag: noindex
   `tolva-git-staging-alejandroo188.vercel.app`, pero el scope real de Vercel es
   `alejandroo188s-projects` (con «s»). La URL estable de staging es por tanto
   `tolva-git-staging-alejandroo188s-projects.vercel.app`. Sin impacto funcional; se documenta.
+- **Divergencia `main`/`staging` resuelta (regla de merge corregida).** GitHub reescribe el commit en
+  *ambos* merge (squash y rebase), de modo que tras cada `staging`→`main` las dos ramas acaban con
+  el mismo contenido pero distinto SHA, y el siguiente PR `staging`→`main` da «not mergeable». La
+  corrección, recogida en `CONTRIBUTING.md`: **tras cada merge de `staging`→`main`, `staging` debe
+  apuntar al mismo SHA que `main`**; si divergen, se fuerza `staging` = `main` (desactivando y
+  reactivando la protección de `staging` vía API). La causa raíz fue rebasar y force-pushear
+  `staging` a mano, no el squash en sí. **Estado actual: `staging` == `main` == `7fed6f7` (mismo
+  SHA), protección de `staging` restaurada idéntica.**
 
 ### Entregables completados en este hito
 
