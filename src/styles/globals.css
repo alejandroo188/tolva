@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* next-themes usa la estrategia `class`: `.dark` en <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Borde por defecto coherente con la línea del sistema (Tailwind v4 pone
+   * `currentColor`; aquí queremos el filete del tema). */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+
+  /* Foco visible en todo elemento interactivo — recorrido por teclado.
+   * El ancho se deriva del espaciado base (`--spacing`), no de un valor crudo. */
+  :focus-visible {
+    outline: calc(var(--spacing) * 0.5) solid var(--color-accent);
+    outline-offset: calc(var(--spacing) * 0.5);
+    border-radius: var(--radius-control);
+  }
+
+  /* Scrim de las hojas modales. */
+  dialog::backdrop {
+    background: var(--color-backdrop);
+  }
+
+  /* Slider: pista y pulgar con tokens (sólo `var()`, sin valores crudos). */
+  input[type="range"].slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: calc(var(--spacing) * 5); /* área de toque */
+    background: transparent;
+  }
+  input[type="range"].slider:focus-visible {
+    outline-offset: 0;
+  }
+  input[type="range"].slider::-webkit-slider-runnable-track {
+    height: calc(var(--spacing) * 1);
+    border-radius: var(--radius-control);
+    background: var(--color-line-strong);
+  }
+  input[type="range"].slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: calc(var(--spacing) * 5);
+    height: calc(var(--spacing) * 5);
+    margin-top: calc(var(--spacing) * -2);
+    border-radius: 50%;
+    background: var(--color-accent);
+    border: calc(var(--spacing) * 0.5) solid var(--color-surface);
+  }
+  input[type="range"].slider::-moz-range-track {
+    height: calc(var(--spacing) * 1);
+    border-radius: var(--radius-control);
+    background: var(--color-line-strong);
+  }
+  input[type="range"].slider::-moz-range-thumb {
+    width: calc(var(--spacing) * 5);
+    height: calc(var(--spacing) * 5);
+    border-radius: 50%;
+    background: var(--color-accent);
+    border: calc(var(--spacing) * 0.5) solid var(--color-surface);
+  }
+}
+
+/* Respetamos la preferencia de movimiento reducido: un único momento orquestado
+ * desaparece y todo queda en su estado final (verificado con `emulateMedia`). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
