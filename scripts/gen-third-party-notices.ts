@@ -31,6 +31,18 @@ function packageName(key: string): string {
   return at > 0 ? key.slice(0, at) : key;
 }
 
+/**
+ * Paquetes que NO se distribuyen y que, además, varían según la plataforma de
+ * build (binarios nativos de macOS vs Linux). Excluirlos hace que el aviso sea
+ * determinista entre entornos y refleje sólo lo que se sirve al usuario:
+ *   - `sharp` / `@img/*`: optimizador de imágenes del servidor (desactivado).
+ *   - `@next/swc-*`: binario del compilador SWC de Next (herramienta de build).
+ * `@swc/helpers` y `@next/env` sí se empaquetan en el bundle y se conservan.
+ */
+function isExcluded(name: string): boolean {
+  return name === "sharp" || name.startsWith("@img/") || name.startsWith("@next/swc-");
+}
+
 function licenseText(pkg: PkgInfo): string {
   if (pkg.licenseFile && existsSync(pkg.licenseFile)) {
     try {
@@ -60,7 +72,10 @@ function render(pkgs: Record<string, PkgInfo>): string {
   lines.push("");
 
   const entries = Object.entries(pkgs)
-    .filter(([key]) => packageName(key) !== ROOT_PACKAGE)
+    .filter(([key]) => {
+      const name = packageName(key);
+      return name !== ROOT_PACKAGE && !isExcluded(name);
+    })
     .sort(([a], [b]) => packageName(a).localeCompare(packageName(b)));
 
   for (const [key, pkg] of entries) {
@@ -85,13 +100,15 @@ function render(pkgs: Record<string, PkgInfo>): string {
     lines.push("");
   }
 
-  lines.push("### Nota sobre `sharp` y `@img/*`");
+  lines.push("### Nota sobre herramientas de build no distribuidas");
   lines.push("");
   lines.push(
     "`sharp` y sus submódulos `@img/*` son una dependencia **opcional** de Next.js utilizada " +
-      "exclusivamente por el optimizador de imágenes del servidor. Tolva lo desactiva " +
-      "(`images.unoptimized: true`) y compila a una exportación estática (`output: 'export'`), por lo " +
-      "que esta cadena no se invoca, no se empaqueta ni se distribuye. Se lista aquí por transparencia.",
+      "exclusivamente por el optimizador de imágenes del servidor, y `@next/swc-*` es el binario " +
+      "del compilador SWC. Tolva desactiva el optimizador (`images.unoptimized: true`) y compila a " +
+      "una exportación estática (`output: 'export'`), por lo que esta cadena no se invoca, no se " +
+      "empaqueta ni se distribuye. Se documenta aquí por transparencia; sus binarios varían por " +
+      "plataforma (macOS/Linux) y por eso no se listan como entradas individuales.",
   );
   lines.push("");
 
