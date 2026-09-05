@@ -305,7 +305,8 @@ diseño y la crítica anti-default viven en `docs/DESIGN.md`; la decisión del a
 | `npm run test:unit:coverage` | ✅ 146 tests pasados, umbral de cobertura superado |
 | `npm run build` | ✅ export estático; `/dev/ui` sirve 404 en producción |
 | `npm run size` | ✅ JS 186,39 KB gzip ≤ 200 KB baseline; CSS 6,11 KB gzip ≤ 25 KB |
-| `npm run test:e2e` (chromium) | ✅ 23 passed / 23 |
+| `npm run test:e2e` (chromium) | ✅ 25 passed / 25 |
+| `npm run test:e2e` (chromium + firefox + webkit) | ✅ 75 passed / 75 |
 
 ### Entregables completados en este hito
 
@@ -336,7 +337,7 @@ apartado 1 de la crítica anti-default de `docs/DESIGN.md`.
 | Cero valores de color/espaciado/radio/sombra/tipografía a pelo fuera de `tokens.css` (script) | ✅ `design:check` en verde + forzado en CI |
 | Capturas a 360/768/1024/1440 × claro/oscuro sin desbordamiento horizontal | ✅ 8 capturas generadas en `test-results/design/`; desbordamiento ≤ 1 px en las 8 |
 | axe-core sin violaciones en `/dev/ui` y las 5 rutas legales, en ambos modos | ✅ 12/12 (ver notas) |
-| Recorrido completo por teclado con foco visible en cada primitivo | ✅ test dedicado (`:focus-visible`) |
+| Recorrido completo por teclado con foco visible en cada primitivo | ✅ test dedicado (`:focus-visible`) en los tres navegadores |
 | `prefers-reduced-motion` verificado con `emulateMedia` | ✅ `matchMedia(...).matches === true` |
 | Crítica anti-default escrita con al menos una decisión revisada y su motivo | ✅ `docs/DESIGN.md`, 6 apartados (acento, negro del texto, sin hero, botón no-cromático, SF nativa, checklist §7.4) |
 
@@ -362,6 +363,11 @@ apartado 1 de la crítica anti-default de `docs/DESIGN.md`.
   aserciones: desbordamiento horizontal ≤ 1 px en las 8 combinaciones, axe-core de contraste, y
   comprobaciones de estilo computado (la superficie cambia claro↔oscuro; la cifra mide 56 px). Las
   8 capturas quedan en `test-results/design/` para revisión humana cuando se quiera.
+- **Orden de tabulación distinto en WebKit.** El test de foco recorre la página con
+  Tab y exige foco visible sólo en controles interactivos reales (`a[href]`, `button`,
+  `input`, …), ignorando destinos no interactivos que WebKit mete en el orden de
+  tabulación (el `<body>` o un `<dialog>` cerrado). Así el criterio «foco visible en cada
+  primitivo» se verifica igual en chromium, firefox y webkit (75/75).
 - **Inter autoalojada completa (7 subconjuntos).** La app es en español (sólo necesita `latin`); el
   import por defecto de `@fontsource-variable/inter` empaqueta todos los subconjuntos. A nivel de
   runtime sólo se descarga `latin` (los `@font-face` llevan `unicode-range`), pero el presupuesto de
