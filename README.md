@@ -68,6 +68,12 @@ npm run build   # build estático en out/
 | `npm run notices:generate` / `notices:check` | Avisos de terceros |
 | `npm run size` | Presupuesto de bundle |
 
+## Contribuir
+
+Las ramas `main` y `staging` están protegidas: el trabajo entra por PR con CI en
+verde. Antes de añadir una dependencia hay que verificarla con la skill
+`licencias-permisivas`. Ver `CONTRIBUTING.md`.
+
 ## Licencia
 
 MIT. Ver `LICENSE`. Los avisos y licencias de las dependencias de terceros están
