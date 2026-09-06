@@ -63,7 +63,10 @@ export function Segmented<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex items-center gap-1 rounded-field border border-line bg-chrome p-1",
+        // `max-w-full` + `flex-wrap`: el control conserva su ancho de contenido
+        // cuando cabe, y envuelve en varias filas cuando el contenedor es más
+        // estrecho que la suma de las opciones (7 formatos a 360 px).
+        "inline-flex max-w-full flex-wrap items-center gap-1 rounded-field border border-line bg-chrome p-1",
         className,
       )}
     >

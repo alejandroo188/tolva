@@ -5,11 +5,25 @@
  * la frontera Comlink sin arrastrar APIs del navegador.
  */
 
-import type { EditRecipe } from "@/lib/domain/types";
+import type { EditRecipe, ExifOrientation } from "@/lib/domain/types";
+
+/** Dimensiones orientadas devueltas por `probe` (sin codificar). */
+export interface ProbeResult {
+  width: number;
+  height: number;
+}
 
 /** Fase del procesado, para el progreso y el diagnóstico. */
 export type PipelinePhase =
-  "decode" | "crop" | "rotate" | "flip" | "resize" | "adjust" | "watermark" | "encode";
+  | "decode"
+  | "crop"
+  | "rotate"
+  | "straighten"
+  | "flip"
+  | "resize"
+  | "adjust"
+  | "watermark"
+  | "encode";
 
 /** Callback de progreso (0→1) invocado por el worker vía Comlink.proxy. */
 export type ProgressCallback = (progress: number, phase: PipelinePhase) => void;
@@ -57,6 +71,17 @@ export interface ImageWorkerApi {
     cancel: CancelToken,
     onProgress: ProgressCallback,
   ): Promise<ImageJobResult>;
+
+  /**
+   * Decodifica la fuente y devuelve sus dimensiones **ya orientadas** (sin
+   * codificar). Lo usa la ingesta para rellenar `source.width`/`height` sin
+   * decodificar píxeles en el hilo principal (§4.2).
+   */
+  probe(
+    sourceBytes: ArrayBuffer,
+    mime: string,
+    exifOrientation: ExifOrientation,
+  ): Promise<ProbeResult>;
 
   /** Sólo tests: hace fallar el siguiente trabajo (para probar reintento). */
   _failNextJob(): void;
