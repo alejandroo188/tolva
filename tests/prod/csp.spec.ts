@@ -77,3 +77,28 @@ test("las cabeceras servidas son las del §9.3", async ({ page }) => {
   expect(headers["referrer-policy"]).toBe("no-referrer");
   expect(headers["x-content-type-options"]).toBe("nosniff");
 });
+
+test("las rutas públicas se sirven desde el export estático", async ({ page }) => {
+  // `cleanUrls` mapea `/aviso-legal` a `aviso-legal.html`. Se comprueba aquí
+  // porque el despliegue publica `out/` directamente, sin el preset de Next.
+  for (const route of ["/", "/aviso-legal", "/privacidad", "/cookies", "/terminos", "/licencias"]) {
+    const response = await page.goto(route);
+    expect(response?.status(), `ruta ${route}`).toBe(200);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  }
+});
+
+test("el HTML servido no lleva ningún script inline", async ({ page }) => {
+  // La CSP no admite `'unsafe-inline'`: si vuelve a colarse uno, la página deja
+  // de hidratar. Se afirma sobre el DOM ya cargado, no sobre el fichero.
+  for (const route of ["/", "/privacidad"]) {
+    await page.goto(route);
+    const inline = await page.evaluate(
+      () =>
+        [...document.querySelectorAll("script")].filter(
+          (s) => !s.src && (s.textContent ?? "").trim() !== "" && !s.type.includes("json"),
+        ).length,
+    );
+    expect(inline, `ruta ${route}`).toBe(0);
+  }
+});
