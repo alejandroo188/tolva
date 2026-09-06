@@ -109,6 +109,25 @@ export function detectFormat(input: ArrayBuffer | Uint8Array): DetectedFormat | 
 }
 
 /** ¿Es el formato decodificable de forma nativa por `createImageBitmap`? */
+/**
+ * ¿El JPEG está completo? Un JPEG bien formado termina con el marcador de fin de
+ * imagen `FF D9`; dentro de los datos entrópicos todo `FF` va rellenado como
+ * `FF 00`, así que la secuencia `FF D9` no aparece por azar y basta con buscarla
+ * hacia atrás (encontrada de inmediato en un fichero válido, aunque lleve relleno
+ * al final).
+ *
+ * Se comprueba porque los navegadores **no coinciden**: Chromium rechaza un JPEG
+ * truncado y Firefox lo decodifica a medias. Validarlo nosotros hace que el mismo
+ * fichero se comporte igual en todos.
+ */
+export function hasJpegEndOfImage(input: ArrayBuffer | Uint8Array): boolean {
+  const b = toBytes(input);
+  for (let i = b.length - 2; i >= 0; i -= 1) {
+    if (b[i] === 0xff && b[i + 1] === 0xd9) return true;
+  }
+  return false;
+}
+
 export function isNativeBitmapFormat(format: DetectedFormat): boolean {
   return format === "jpeg" || format === "png" || format === "webp";
 }

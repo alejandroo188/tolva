@@ -20,6 +20,9 @@ for (const width of widths) {
       await upload(page, [fixturePath("gradient.png")]);
       // Espera a que el editor esté montado (fuente + borrador disponibles).
       await expect(page.getByRole("button", { name: "Recortar" })).toBeVisible();
+      // La vista previa la produce el worker: se espera a que esté pintada para
+      // que la captura documente la interfaz real y no el estado de carga.
+      await expect(page.locator('img[alt^="Vista previa"]')).toBeVisible({ timeout: 30_000 });
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

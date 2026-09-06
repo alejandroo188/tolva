@@ -20,6 +20,7 @@ const FORMAT_LABELS: Record<OutputFormat, string> = {
 export function ExportPanel() {
   const prefs = useTolva((s) => s.prefs);
   const setOutput = useTolva((s) => s.setOutput);
+  const source = useTolva((s) => s.sources.find((src) => src.id === s.selectedId));
 
   const lossless = isLosslessFormat(prefs.outputFormat);
 
@@ -76,6 +77,17 @@ export function ExportPanel() {
             onCheckedChange={(stripMetadata) => setOutput({ stripMetadata })}
           />
         </div>
+
+        {/* §8.3 recorrido 5: lo que se ha leído del fichero se le dice al usuario,
+            junto al interruptor que decide qué pasa con ello. */}
+        {source?.hasExif ? (
+          <p role="status" className="text-caption text-text-muted">
+            {source.hasGps
+              ? "Esta imagen incluye metadatos EXIF con coordenadas GPS."
+              : "Esta imagen incluye metadatos EXIF."}{" "}
+            {prefs.stripMetadata ? "Se eliminarán al exportar." : "Se conservarán al exportar."}
+          </p>
+        ) : null}
       </div>
     </section>
   );

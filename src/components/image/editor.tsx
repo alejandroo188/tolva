@@ -109,7 +109,10 @@ export function Editor({
 
         <span className="mx-2 hidden h-6 w-px bg-line sm:block" aria-hidden="true" />
 
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* `basis-full` a partir de 0 px: con `flex-1` el grupo se comprimía a 64 px
+            en la misma fila que los botones y su contenido se salía del viewport.
+            Desde `sm` vuelve a compartir fila con la barra. */}
+        <div className="flex min-w-0 grow basis-full items-center gap-2 sm:basis-0">
           <span className="text-caption text-text-secondary">Enderezar</span>
           <Slider
             aria-label="Enderezar (grados)"
@@ -119,7 +122,7 @@ export function Editor({
             value={straighten}
             onChange={(event) => patch(setStraighten(ops, Number(event.target.value)))}
           />
-          <span className="w-12 text-right text-caption tabular-nums text-text-secondary">
+          <span className="w-12 shrink-0 text-right text-caption tabular-nums text-text-secondary">
             {straighten}°
           </span>
         </div>

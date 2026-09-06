@@ -9,7 +9,12 @@
 
 import type { Dimensions, ExifOrientation } from "@/lib/domain/types";
 import { readExif, type ExifInfo } from "@/lib/media/exif";
-import { detectFormat, mimeForFormat, type DetectedFormat } from "@/lib/media/sniff";
+import {
+  detectFormat,
+  hasJpegEndOfImage,
+  mimeForFormat,
+  type DetectedFormat,
+} from "@/lib/media/sniff";
 
 /** Obtiene las dimensiones orientadas de una fuente (delegado en el worker). */
 export type ProbeFn = (
@@ -98,6 +103,16 @@ export async function intakeFile(
   const format = detectFormat(bytes);
   if (!format) {
     return { ok: false, code: "unsupported", reason: `«${file.name}»: ${UNSUPPORTED_MESSAGE}` };
+  }
+
+  // Un JPEG sin marcador de fin está truncado. Se rechaza aquí, antes de tocar el
+  // decodificador, para que el resultado no dependa de la tolerancia del navegador.
+  if (format === "jpeg" && !hasJpegEndOfImage(bytes)) {
+    return {
+      ok: false,
+      code: "undecodable",
+      reason: `«${file.name}» parece un JPEG pero no se pudo decodificar: está truncado (falta el marcador de fin de imagen).`,
+    };
   }
 
   const mime = mimeForFormat(format);

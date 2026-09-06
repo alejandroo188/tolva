@@ -106,7 +106,10 @@ export function ImageApp() {
   return (
     <>
       {!hasSources ? (
-        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-4 py-12 sm:px-6">
+        <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-6 px-4 py-12 sm:px-6">
+          {/* También en la pantalla inicial: la limitación se anuncia antes de que
+              el usuario cargue nada, no después de haber invertido tiempo. */}
+          <DegradationBanner />
           <Dropzone />
         </main>
       ) : (

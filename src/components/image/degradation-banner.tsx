@@ -2,6 +2,13 @@
 
 import { AlertTriangle } from "lucide-react";
 import { useTolva } from "@/lib/image/store";
+import type { Degradation } from "@/lib/capabilities";
+
+/** Referencia estable para el caso «aún no hay capacidades detectadas».
+ *  Un `[]` literal dentro del selector devuelve un array nuevo en cada llamada y
+ *  React lo detecta como estado cambiante en cada render
+ *  («getServerSnapshot should be cached to avoid an infinite loop»). */
+const NO_DEGRADATIONS: readonly Degradation[] = [];
 
 /**
  * Aviso de degradación: cuando el navegador no expone alguna capacidad (sin
@@ -9,7 +16,7 @@ import { useTolva } from "@/lib/image/store";
  * alternativa, nunca un error críptico (§8.3).
  */
 export function DegradationBanner() {
-  const degradations = useTolva((s) => s.capabilities?.degradations ?? []);
+  const degradations = useTolva((s) => s.capabilities?.degradations ?? NO_DEGRADATIONS);
 
   if (degradations.length === 0) return null;
 
