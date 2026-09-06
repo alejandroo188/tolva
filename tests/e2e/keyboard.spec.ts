@@ -38,6 +38,10 @@ test("los atajos del editor funcionan sin ratón", async ({ page }) => {
 test("el foco es visible al tabular por el editor", async ({ page }) => {
   await page.goto("/");
   await upload(page, [fixturePath("checkerboard.png")]);
+  // Se espera al editor antes de tabular: si el DOM sigue montándose mientras se
+  // recorre, el foco puede caer en un elemento que desaparece y la comprobación
+  // se vuelve inestable bajo carga.
+  await expect(page.getByRole("button", { name: "Recortar" })).toBeVisible();
 
   let controlesVerificados = 0;
   for (let i = 0; i < 40 && controlesVerificados < 6; i += 1) {
