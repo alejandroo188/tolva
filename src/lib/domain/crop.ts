@@ -133,6 +133,41 @@ export function resizeWithLockedRatio(
 }
 
 /**
+ * Redimensiona `rect` en modo libre (sin proporción bloqueada) al arrastrar la
+ * asa de esquina `handle` hasta `pointer`, con `bounds` como límite. El punto
+ * opuesto a la esquina permanece fijo. Devuelve un rectángulo entero, ≥ 1×1 y
+ * dentro de límites.
+ */
+export function resizeFree(
+  rect: Rect,
+  handle: CornerHandle,
+  pointer: Point,
+  bounds: Dimensions,
+): Rect {
+  let { x, y, width, height } = rect;
+
+  // Eje vertical: "n*" arrastra el borde superior, "s*" el inferior.
+  if (handle === "nw" || handle === "ne") {
+    const bottom = y + height;
+    y = Math.min(pointer.y, bottom - 1);
+    height = bottom - y;
+  } else {
+    height = Math.max(1, pointer.y - y);
+  }
+
+  // Eje horizontal: "*w" arrastra el borde izquierdo, "*e" el derecho.
+  if (handle === "nw" || handle === "sw") {
+    const right = x + width;
+    x = Math.min(pointer.x, right - 1);
+    width = right - x;
+  } else {
+    width = Math.max(1, pointer.x - x);
+  }
+
+  return clampRect({ x, y, width, height }, bounds);
+}
+
+/**
  * Bounding box (eje-alineado) de un rectángulo tras rotarlo `degrees` (90/180/270)
  * alrededor de su centro. Para 180° es el mismo rectángulo; para 90°/270° se
  * intercambian ancho y alto manteniendo el centro.

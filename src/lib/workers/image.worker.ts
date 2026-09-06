@@ -21,6 +21,7 @@ import {
   resizeLanczos,
 } from "@/lib/codecs/loader";
 import { detectFormat, mimeForFormat, type DetectedFormat } from "@/lib/media/sniff";
+import { adjustColor, clampByte } from "@/lib/media/adjust";
 import { stripExifApp1 } from "@/lib/media/jpeg-exif";
 import { WATERMARK_FILL, WATERMARK_SHADOW } from "@/lib/media/watermark";
 import { decodeBmp, encodeBmp } from "@/lib/media/bmp";
@@ -39,6 +40,7 @@ import type {
   OutputSpec,
   ResizeOp,
   RotateOp,
+  StraightenOp,
   WatermarkOp,
   WatermarkPosition,
 } from "@/lib/domain/types";
@@ -47,6 +49,7 @@ import type {
   ImageJobResult,
   ImageWorkerApi,
   PipelinePhase,
+  ProbeResult,
   ProgressCallback,
 } from "./types";
 
@@ -84,11 +87,6 @@ function toTransferable(u8: Uint8Array): ArrayBuffer {
   const buffer = u8.buffer as ArrayBuffer;
   if (u8.byteOffset === 0 && u8.byteLength === buffer.byteLength) return buffer;
   return buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-}
-
-/** Clampea un byte de canal a [0, 255] con redondeo. */
-function clampByte(value: number): number {
-  return value < 0 ? 0 : value > 255 ? 255 : Math.round(value);
 }
 
 /**
@@ -319,6 +317,33 @@ async function applyRotate(data: ImageData, degrees: RotateOp["degrees"]): Promi
   return ctx.getImageData(0, 0, w, h);
 }
 
+/** Enderezado libre: rota un ángulo arbitrario y expande el lienzo (esquinas transparentes). */
+async function applyStraighten(
+  data: ImageData,
+  degrees: StraightenOp["degrees"],
+): Promise<ImageData> {
+  if (degrees === 0) return data;
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const w = Math.max(1, Math.round(data.width * cos + data.height * sin));
+  const h = Math.max(1, Math.round(data.width * sin + data.height * cos));
+
+  const canvas = new OffscreenCanvas(w, h);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new PipelineError("OffscreenCanvas 2D no disponible");
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(rad);
+
+  const bitmap = await createImageBitmap(data);
+  try {
+    ctx.drawImage(bitmap, -data.width / 2, -data.height / 2);
+  } finally {
+    bitmap.close();
+  }
+  return ctx.getImageData(0, 0, w, h);
+}
+
 async function applyFlip(data: ImageData, axis: FlipOp["axis"]): Promise<ImageData> {
   const canvas = new OffscreenCanvas(data.width, data.height);
   const ctx = canvas.getContext("2d");
@@ -396,10 +421,6 @@ async function applyResize(data: ImageData, op: ResizeOp): Promise<ImageData> {
 }
 
 async function applyAdjust(data: ImageData, op: AdjustOp, cancel: CancelToken): Promise<ImageData> {
-  const brightnessF = 1 + op.brightness / 100;
-  const contrastF = 1 + op.contrast / 100;
-  const saturationF = 1 + op.saturation / 100;
-
   const src = data.data;
   const out = new Uint8ClampedArray(src.length);
   const rowsPerCheck = 64;
@@ -412,26 +433,7 @@ async function applyAdjust(data: ImageData, op: AdjustOp, cancel: CancelToken): 
     const rowStart = y * rowStride;
     for (let x = 0; x < data.width; x += 1) {
       const i = rowStart + x * 4;
-      let r = src[i];
-      let g = src[i + 1];
-      let b = src[i + 2];
-
-      // Saturación por luminancia (Rec. 601).
-      const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      r = lum + (r - lum) * saturationF;
-      g = lum + (g - lum) * saturationF;
-      b = lum + (b - lum) * saturationF;
-
-      // Contraste alrededor del gris medio.
-      r = (r - 128) * contrastF + 128;
-      g = (g - 128) * contrastF + 128;
-      b = (b - 128) * contrastF + 128;
-
-      // Brillo multiplicativo.
-      r *= brightnessF;
-      g *= brightnessF;
-      b *= brightnessF;
-
+      const [r, g, b] = adjustColor(src[i], src[i + 1], src[i + 2], op);
       out[i] = clampByte(r);
       out[i + 1] = clampByte(g);
       out[i + 2] = clampByte(b);
@@ -476,6 +478,23 @@ function watermarkPosition(
   }
 }
 
+/** Decodifica una `data:image/…` URL a un `ImageBitmap` (worker: sin `fetch` ni DOM). */
+async function decodeImageDataUrl(url: string): Promise<ImageBitmap> {
+  const comma = url.indexOf(",");
+  if (comma < 0) throw new PipelineError("Marca de agua: data URL inválida");
+  const header = url.slice(0, comma);
+  const mimeMatch = /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(header);
+  if (!mimeMatch) throw new PipelineError("Marca de agua: data URL no es una imagen base64");
+  const mime = mimeMatch[1].toLowerCase();
+
+  const b64 = url.slice(comma + 1);
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) u8[i] = bin.charCodeAt(i);
+
+  return createImageBitmap(new Blob([u8.buffer as ArrayBuffer], { type: mime }));
+}
+
 async function applyWatermark(data: ImageData, op: WatermarkOp): Promise<ImageData> {
   const canvas = new OffscreenCanvas(data.width, data.height);
   const ctx = canvas.getContext("2d");
@@ -488,27 +507,44 @@ async function applyWatermark(data: ImageData, op: WatermarkOp): Promise<ImageDa
     bitmap.close();
   }
 
-  const fontSize = Math.max(10, Math.floor(Math.min(data.width, data.height) * 0.06));
-  ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
-  ctx.textBaseline = "top";
-  ctx.fillStyle = WATERMARK_FILL;
   ctx.globalAlpha = op.opacity;
-  ctx.shadowColor = WATERMARK_SHADOW;
-  ctx.shadowBlur = 4;
-  ctx.shadowOffsetX = 1;
-  ctx.shadowOffsetY = 1;
+  const pad = Math.max(8, Math.floor(Math.min(data.width, data.height) * 0.03));
 
-  const textWidth = ctx.measureText(op.text).width;
-  const pad = Math.max(8, Math.floor(fontSize * 0.5));
-  const { x, y } = watermarkPosition(
-    op.position,
-    data.width,
-    data.height,
-    textWidth,
-    fontSize,
-    pad,
-  );
-  ctx.fillText(op.text, x, y);
+  if (op.kind === "text") {
+    const fontSize = Math.max(10, Math.floor(Math.min(data.width, data.height) * 0.06));
+    ctx.font = `600 ${fontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillStyle = WATERMARK_FILL;
+    ctx.shadowColor = WATERMARK_SHADOW;
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+
+    const textWidth = ctx.measureText(op.text).width;
+    const { x, y } = watermarkPosition(
+      op.position,
+      data.width,
+      data.height,
+      textWidth,
+      fontSize,
+      pad,
+    );
+    ctx.fillText(op.text, x, y);
+  } else {
+    const img = await decodeImageDataUrl(op.imageDataUrl);
+    try {
+      const maxSide = Math.max(img.width, img.height);
+      // La marca de agua no debe exceder el 20 % del lado menor de la imagen.
+      const targetMax = Math.min(data.width, data.height) * 0.2;
+      const scale = Math.min(1, targetMax / maxSide);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const { x, y } = watermarkPosition(op.position, data.width, data.height, w, h, pad);
+      ctx.drawImage(img, x, y, w, h);
+    } finally {
+      img.close();
+    }
+  }
 
   return ctx.getImageData(0, 0, data.width, data.height);
 }
@@ -520,6 +556,8 @@ async function applyOp(data: ImageData, op: Op, cancel: CancelToken): Promise<Im
       return applyCrop(data, op);
     case "rotate":
       return applyRotate(data, op.degrees);
+    case "straighten":
+      return applyStraighten(data, op.degrees);
     case "flip":
       return applyFlip(data, op.axis);
     case "resize":
@@ -631,6 +669,17 @@ async function runPipeline(
 
 let failNextJob = false;
 
+/** Decodifica y devuelve las dimensiones orientadas (sin codificar). */
+async function probe(
+  sourceBytes: ArrayBuffer,
+  mime: string,
+  exifOrientation: ExifOrientation,
+): Promise<ProbeResult> {
+  let data = await decode(sourceBytes, mime);
+  data = await applyOrientation(data, exifOrientation);
+  return { width: data.width, height: data.height };
+}
+
 const api: ImageWorkerApi = {
   async runJob(recipe, sourceBytes, cancel, onProgress) {
     if (failNextJob) {
@@ -639,6 +688,9 @@ const api: ImageWorkerApi = {
     }
     const result = await runPipeline(recipe, sourceBytes, cancel, onProgress);
     return Comlink.transfer(result, [result.data]);
+  },
+  async probe(sourceBytes, mime, exifOrientation) {
+    return probe(sourceBytes, mime, exifOrientation);
   },
   _failNextJob() {
     failNextJob = true;

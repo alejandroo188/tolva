@@ -6,8 +6,16 @@
 import type { EditRecipe, ExifOrientation, Op, ResizeMode, WatermarkPosition } from "./types";
 import { isOutputFormat } from "./quality";
 
-/** Orden canónico de operaciones (crop → rotate → flip → resize → adjust → watermark). */
-export const OP_ORDER = ["crop", "rotate", "flip", "resize", "adjust", "watermark"] as const;
+/** Orden canónico de operaciones (crop → rotate → straighten → flip → resize → adjust → watermark). */
+export const OP_ORDER = [
+  "crop",
+  "rotate",
+  "straighten",
+  "flip",
+  "resize",
+  "adjust",
+  "watermark",
+] as const;
 export type OpType = (typeof OP_ORDER)[number];
 
 /** Tipo de una operación (discriminante `op.type`). */
@@ -93,6 +101,16 @@ function validateOp(op: unknown, index: number): Op {
         throw new Error(`op #${index} (rotate): degrees debe ser 90, 180 o 270`);
       }
       return { type: "rotate", degrees: op.degrees };
+    case "straighten":
+      if (
+        typeof op.degrees !== "number" ||
+        !Number.isFinite(op.degrees) ||
+        op.degrees < -180 ||
+        op.degrees > 180
+      ) {
+        throw new Error(`op #${index} (straighten): degrees debe ser un número en -180..180`);
+      }
+      return { type: "straighten", degrees: op.degrees };
     case "flip":
       if (op.axis !== "horizontal" && op.axis !== "vertical") {
         throw new Error(`op #${index} (flip): axis debe ser "horizontal" o "vertical"`);
@@ -115,20 +133,59 @@ function validateOp(op: unknown, index: number): Op {
         upscale: op.upscale,
       };
     case "adjust":
-      if (!isPercent(op.brightness) || !isPercent(op.contrast) || !isPercent(op.saturation)) {
-        throw new Error(`op #${index} (adjust): brightness/contrast/saturation en -100..100`);
+      if (
+        !isPercent(op.brightness) ||
+        !isPercent(op.contrast) ||
+        !isPercent(op.saturation) ||
+        !isPercent(op.temperature)
+      ) {
+        throw new Error(
+          `op #${index} (adjust): brightness/contrast/saturation/temperature en -100..100`,
+        );
+      }
+      if (typeof op.grayscale !== "boolean") {
+        throw new Error(`op #${index} (adjust): grayscale debe ser booleano`);
       }
       return {
         type: "adjust",
         brightness: op.brightness,
         contrast: op.contrast,
         saturation: op.saturation,
+        temperature: op.temperature,
+        grayscale: op.grayscale,
       };
-    case "watermark":
-      if (typeof op.text !== "string" || !isUnit(op.opacity) || !isWatermarkPosition(op.position)) {
-        throw new Error(`op #${index} (watermark): text, opacity (0..1) y position válidos`);
+    case "watermark": {
+      if (!isUnit(op.opacity) || !isWatermarkPosition(op.position)) {
+        throw new Error(`op #${index} (watermark): opacity (0..1) y position válidos`);
       }
-      return { type: "watermark", text: op.text, opacity: op.opacity, position: op.position };
+      if (op.kind === "text") {
+        if (typeof op.text !== "string" || op.text.length === 0) {
+          throw new Error(`op #${index} (watermark): text debe ser un string no vacío`);
+        }
+        return {
+          type: "watermark",
+          kind: "text",
+          text: op.text,
+          opacity: op.opacity,
+          position: op.position,
+        };
+      }
+      if (op.kind === "image") {
+        if (typeof op.imageDataUrl !== "string" || !op.imageDataUrl.startsWith("data:image/")) {
+          throw new Error(
+            `op #${index} (watermark): imageDataUrl debe ser una data: URL de imagen`,
+          );
+        }
+        return {
+          type: "watermark",
+          kind: "image",
+          imageDataUrl: op.imageDataUrl,
+          opacity: op.opacity,
+          position: op.position,
+        };
+      }
+      throw new Error(`op #${index} (watermark): kind debe ser "text" o "image"`);
+    }
     default:
       throw new Error(`op #${index}: tipo desconocido "${String(op.type)}"`);
   }

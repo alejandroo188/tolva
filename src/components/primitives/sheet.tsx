@@ -40,7 +40,11 @@ export function Sheet({ open, onOpenChange, title, description, children, classN
       aria-describedby={description ? descriptionId : undefined}
       onClose={() => onOpenChange(false)}
       className={cn(
-        "m-0 mb-0 mt-auto mx-auto flex w-full max-w-lg flex-col overflow-hidden",
+        // `open:flex` en vez de `flex`: el `display:flex` del autor anularía el
+        // `display:none` que el UA aplica a `<dialog>` cerrado, dejando la hoja
+        // visible tras `close()`. Con la variante `open:` sólo hay `flex` cuando
+        // `[open]` está presente; al cerrar, el diálogo vuelve a `display:none`.
+        "m-0 mb-0 mt-auto mx-auto w-full max-w-lg flex-col overflow-hidden open:flex",
         "rounded-t-sheet border border-line-strong bg-surface text-text shadow-sheet",
         "max-h-dvh",
         className,

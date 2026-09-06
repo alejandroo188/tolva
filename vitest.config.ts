@@ -1,6 +1,13 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Mismo alias que `tsconfig.json` (`@/*` → `./src/*`) para los imports de valor.
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts"],

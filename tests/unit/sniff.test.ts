@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { detectFormat, isNativeBitmapFormat, mimeForFormat } from "../../src/lib/media/sniff";
+import {
+  detectFormat,
+  hasJpegEndOfImage,
+  isNativeBitmapFormat,
+  mimeForFormat,
+} from "../../src/lib/media/sniff";
 
 const bytes = (...arr: number[]): Uint8Array => new Uint8Array(arr);
 
@@ -78,5 +83,27 @@ describe("sniff.mimeForFormat", () => {
     expect(mimeForFormat("bmp")).toBe("image/bmp");
     expect(mimeForFormat("tiff")).toBe("image/tiff");
     expect(mimeForFormat("svg")).toBe("image/svg+xml");
+  });
+});
+
+describe("sniff.hasJpegEndOfImage", () => {
+  it("acepta un JPEG que termina en FF D9", () => {
+    expect(hasJpegEndOfImage(bytes(0xff, 0xd8, 0xff, 0xe0, 0x12, 0x34, 0xff, 0xd9))).toBe(true);
+  });
+
+  it("acepta un JPEG con relleno después del marcador de fin", () => {
+    expect(
+      hasJpegEndOfImage(bytes(0xff, 0xd8, 0xff, 0xe0, 0xff, 0xd9, 0x00, 0x00, 0x00, 0x00)),
+    ).toBe(true);
+  });
+
+  it("rechaza un JPEG truncado a mitad de los datos entrópicos", () => {
+    // `FF 00` es el relleno de un `FF` literal dentro del scan: no es un marcador.
+    expect(hasJpegEndOfImage(bytes(0xff, 0xd8, 0xff, 0xda, 0x12, 0xff, 0x00, 0x34))).toBe(false);
+  });
+
+  it("rechaza una entrada vacía o demasiado corta", () => {
+    expect(hasJpegEndOfImage(new Uint8Array(0))).toBe(false);
+    expect(hasJpegEndOfImage(bytes(0xff))).toBe(false);
   });
 });

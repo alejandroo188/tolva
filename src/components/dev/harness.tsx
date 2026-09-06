@@ -14,7 +14,7 @@ import { readExif, type ExifInfo } from "@/lib/media/exif";
 import { detectFormat } from "@/lib/media/sniff";
 import { detectCapabilities, type Capabilities, type DetectionGlobals } from "@/lib/capabilities";
 import { defaultPoolSize, type PoolStats } from "@/lib/workers/pool";
-import type { EditRecipe } from "@/lib/domain/types";
+import type { EditRecipe, ExifOrientation } from "@/lib/domain/types";
 import type { ConvertOptions } from "@/lib/media/image-pipeline";
 import type { ImageJobResult } from "@/lib/workers/types";
 
@@ -32,6 +32,11 @@ interface TolvaHarness {
   ): Promise<ImageJobResult[]>;
   readExif(bytes: ArrayBuffer): ExifInfo;
   detectFormat(bytes: ArrayBuffer): ReturnType<typeof detectFormat>;
+  probe(
+    sourceBytes: ArrayBuffer,
+    mime: string,
+    exifOrientation: ExifOrientation,
+  ): Promise<{ width: number; height: number }>;
   capabilities(): Promise<Capabilities>;
   poolStats(): PoolStats | null;
   defaultPoolSize(): number;
@@ -89,6 +94,7 @@ export function Harness() {
       },
       readExif,
       detectFormat: (bytes) => detectFormat(bytes),
+      probe: (bytes, mime, orientation) => getPipeline().probe(bytes, mime, orientation),
       capabilities: () => detectCapabilities(captureGlobals()),
       poolStats: () => pipeline?.stats() ?? null,
       defaultPoolSize,
