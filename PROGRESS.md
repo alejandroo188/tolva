@@ -479,7 +479,188 @@ puerta, con `budget:check` activado en CI. Hoy: JS 335 KB y fuentes 213,5 KB sob
 
 ---
 
-## Hitos 4–10
+## Hito 4 — Interfaz de imagen
+
+**Estado: CERRADO** — todos los criterios de aceptación ejecutados y vistos pasar.
+
+### Batería local en verde
+
+| Comando | Resultado |
+|---|---|
+| `npm run lint` | ✅ 0 errores, 0 avisos |
+| `npm run typecheck` | ✅ sin errores |
+| `npm run format:check` | ✅ sin cambios pendientes |
+| `npm run design:check` | ✅ sin valores crudos fuera de `tokens.css` |
+| `npm run licenses:check` | ✅ 52 dependencias de producción, sin violaciones |
+| `npm run notices:check` | ✅ `THIRD_PARTY_NOTICES.md` al día |
+| `npm run test:unit` | ✅ 234 tests pasados (24 ficheros) |
+| `npm run build` | ✅ export estático, 9 rutas; 65 scripts inline extraídos a 29 ficheros |
+| `npm run test:e2e` (5 proyectos) | ✅ 442 passed / 3 skipped, **dos pasadas seguidas** |
+| `npm run test:e2e:prod` | ✅ 6 passed (artefacto real bajo la CSP del §9.3) |
+
+### Entregables completados en este hito
+
+- **Interfaz**: `src/components/image/` — `dropzone` (arrastre a pantalla completa, selector y
+  pegado), `queue` (progreso real, cancelación, reintento, ZIP), `editor` (barra de herramientas,
+  enderezado, comparador), `crop-overlay` (recorte libre, por proporciones y presets de redes),
+  `comparator` (divisor arrastrable), `weight-panel` (el elemento héroe del §7.1),
+  `adjust-panel`, `watermark-panel`, `resize-panel`, `export-panel`, `source-strip`,
+  `shortcuts-sheet`, `degradation-banner`, `image-app`.
+- **Estado y lógica**: `src/lib/image/` — `store` (Zustand, cola y borradores), `draft`
+  (operaciones sobre la receta), `intake` (fichero → fuente, con sus fallos discriminados),
+  `edit-geometry`, `preview`, `preferences`, `shortcuts`, `zip`.
+- **Tests nuevos**: 7 unitarios (`adjust`, `draft`, `edit-geometry`, `preferences`, `preview`,
+  `shortcuts`, `zip`) y 15 E2E (`image-intake`, `image-crop`, `image-resize`, `image-edit-ops`,
+  `image-batch`, `image-cancel`, `image-download`, `image-metadata`, `image-layout`, `image-probe`,
+  `keyboard`, `lazy-codec`, `persistence`, `degradation`, `console`).
+- **Batería de producción**: `playwright.prod.config.ts`, `tests/prod/csp.spec.ts`,
+  `scripts/serve-static.ts`, `scripts/externalize-inline-scripts.ts` y el job de CI
+  «Artefacto de producción».
+
+### Defectos encontrados al verificar el hito
+
+Ninguno de estos lo detectaba la batería tal y como estaba. Cada uno lleva ahora su test.
+
+- **Desbordamiento horizontal a 360 y 1024 px.** El control segmentado de 7 formatos era un
+  `inline-flex` sin `flex-wrap` (482 px fijos) y el grupo «Enderezar» se comprimía a 64 px dentro de
+  la barra de herramientas, empujando su contenido fuera del viewport. `max-w-full flex-wrap` en el
+  primero, `basis-full sm:basis-0` en el segundo.
+- **Un JPEG truncado se comportaba distinto en cada navegador**: Chromium lo rechaza y Firefox lo
+  decodifica a medias. Se valida el marcador de fin de imagen (`FF D9`) antes de decodificar
+  (`hasJpegEndOfImage`), así el mismo fichero da el mismo resultado en todos. Dentro de los datos
+  entrópicos todo `FF` va rellenado como `FF 00`, de modo que la secuencia no aparece por azar.
+- **El aviso de limitaciones del navegador no aparecía en la pantalla inicial**, sólo con imágenes ya
+  cargadas — justo al revés de lo útil: la limitación se anuncia ahora antes de invertir tiempo.
+- **`getServerSnapshot should be cached to avoid an infinite loop`.** El selector de degradaciones
+  devolvía un `[]` nuevo en cada llamada. No rompía ningún test; React avisaba de un bucle de render
+  potencial. Se sustituye por una referencia estable a nivel de módulo.
+- **El EXIF se leía pero no se mostraba** en ninguna parte (§8.3 recorrido 5). Ahora el panel de
+  exportación dice si la imagen lleva EXIF y GPS, y si se van a eliminar o conservar.
+- **Las capturas de revisión visual se tomaban antes de que el worker pintase la vista previa**, así
+  que documentaban el estado de carga en lugar de la interfaz.
+- **`keyboard.spec.ts` era inestable en WebKit**: tabulaba sin esperar a que montase el editor.
+
+### El fallo grave: la aplicación no hidrataba en producción
+
+**La aplicación estaba rota en producción y ningún test lo veía.** La CSP del §9.3 lleva
+`script-src 'self' 'wasm-unsafe-eval'`, sin `'unsafe-inline'`. Next emite tres scripts inline en cada
+página —el de `next-themes`, que evita el parpadeo de tema, y los dos que empujan la carga útil RSC a
+`self.__next_f`—, así que el navegador los bloqueaba y React nunca hidrataba. La página se veía
+entera y no respondía a nada: no se podía cargar ni una imagen.
+
+Salida real de la consola en producción antes del arreglo:
+
+```
+[error] Executing inline script violates the following Content Security Policy directive
+        'script-src 'self' 'wasm-unsafe-eval''. Either the 'unsafe-inline' keyword, a hash
+        ('sha256-n46vPwSWuMC0W703pBofImv82Z26xo4LXymv0E9caPk='), or a nonce ('nonce-...') is
+        required to enable inline execution. The action has been blocked.
+[pageerror] Error: Minified React error #412
+```
+
+**Por qué no lo vio nadie:** los 442 E2E corren contra `next dev`, que no aplica ninguna cabecera.
+Las del §9.3 viven en `vercel.json` y sólo existían en el despliegue. La batería entera estaba en
+verde con el producto inservible.
+
+**Por qué la solución es ésta y no otra:**
+
+- *Nonces*: imposibles. Exigen render dinámico y esto es `output: 'export'`. La documentación de Next
+  es explícita: «Static pages are generated at build time, when no request or response headers
+  exist—so no nonce can be injected».
+- *Hashes*: tampoco. La carga útil RSC cambia en cada build y es distinta en cada ruta, y
+  `vercel.json` se lee antes de construir.
+- *`'unsafe-inline'`*: sería debilitar la CSP que el §9.3 fija a propósito.
+
+Queda mover ese código a ficheros del propio origen, que es lo que `'self'` ya autoriza:
+`scripts/externalize-inline-scripts.ts` lo hace en `postbuild` conservando el orden de ejecución (un
+`<script src>` clásico sin `async` ni `defer` se ejecuta en orden de documento, igual que uno
+inline). **La CSP no se toca.**
+
+Dos errores propios durante ese arreglo, ambos con su comprobación añadida:
+
+1. **`<scriptsrc="…">`.** Al reinsertar los atributos faltaba el separador. El parser lo acepta como
+   elemento desconocido, no ejecuta nada, y la comprobación de «no quedan scripts inline» pasaba
+   igual. Ahora el script falla también ante una etiqueta mal formada.
+2. **Vercel ignoraba `out/`.** Con `framework: "nextjs"`, el builder construye su propia salida desde
+   `.next/` y descarta la carpeta que `postbuild` había reescrito: el arreglo funcionaba en local y
+   el despliegue seguía roto. Como el proyecto es un export 100 % estático —sin funciones, sin
+   optimizador de imágenes, sin middleware—, se pasa a despliegue estático de `out/` con `cleanUrls`.
+   Ahora **lo que se sirve en producción es el mismo artefacto que se prueba**.
+
+Para que no vuelva a ocurrir: `scripts/serve-static.ts` levanta `out/` con las cabeceras **leídas de
+`vercel.json`** (no copiadas, para que no puedan divergir), `tests/prod/csp.spec.ts` comprueba sobre
+él que la aplicación hidrata, convierte y descarga, que `crossOriginIsolated` es cierto, que las
+cabeceras son las del §9.3, que las seis rutas públicas responden 200 y que no queda ningún script
+inline; y todo ello corre en CI como job **«Artefacto de producción»**.
+
+### Criterios de aceptación — estado final
+
+| Criterio | Resultado |
+|---|---|
+| E2E §8.3 recorridos 1–5, 7, 9, 11 y 12 en verde | ✅ 442 passed / 3 skipped en los 5 proyectos |
+| Lote de 20 imágenes → ZIP con 20 entradas correctas | ✅ 20 entradas, sin colisión de nombres, cada una con su firma |
+| Cancelación a mitad del lote conserva lo hecho | ✅ `image-cancel`: lo ya convertido se conserva, el resto no se procesa |
+| Atajos documentados en la UI y probados | ✅ hoja de atajos («?») + `keyboard.spec.ts` |
+| Degradación con `VideoEncoder`/`OffscreenCanvas` ausentes | ✅ `degradation.spec.ts`: mensaje concreto y la conversión sigue funcionando |
+| Revisión visual con capturas en los 4 anchos, claro y oscuro | ✅ 8 capturas en `test-results/design/imagen-*.png`, revisadas una a una |
+
+### Notas honestas
+
+- **`crossOriginIsolated` es `false` en desarrollo.** Las cabeceras COOP/COEP viven en `vercel.json`
+  y `next dev` no las aplica, así que en local no hay `SharedArrayBuffer` y el aviso de limitaciones
+  aparece en las capturas de revisión visual. En el despliegue es `true` (verificado). La batería de
+  producción cubre el caso aislado.
+- **Prefetch de rutas con navegación en cliente.** Al servir el export como estático, los prefetch
+  RSC de `next/link` se abortan y Next recurre a navegación completa. Las páginas cargan bien
+  (verificado en el despliegue); se pierde la ruta rápida de RSC entre las cinco páginas legales.
+  Sin impacto funcional.
+- **El único `test.skip` de la batería** sigue siendo el de TBT por tareas largas
+  (`image-quality.spec.ts`): sólo Chromium emite `longtask`.
+
+### Presupuesto de bundle (adelantado, no bloqueante)
+
+La interfaz del hito sube el JS estático de 335 a **359,8 KB gzip** (límite del §8.6: 130 KB).
+Fuentes en 213,5 KB (límite 60 KB). CSS 7,1 KB ✓ y cero `.wasm` en el bundle ✓. Sigue en
+`continue-on-error` hasta el **Hito 7**, donde la carga diferida de códecs y el subconjunto latino de
+Inter lo devuelven a puerta con `budget:check` activado en CI.
+
+### Verificación en el despliegue real
+
+Sobre `tolva-bice.vercel.app` (producción, commit `8aa47e0`), con un navegador real:
+
+```
+TÍTULO: Tolva — Convierte imágenes y vídeo en tu navegador
+scripts inline ejecutables: 0 | externalizados: 3
+AISLAMIENTO: {"isolated":true,"sab":"function"}
+AVISO EXIF: "Esta imagen incluye metadatos EXIF con coordenadas GPS. Se eliminarán al exportar."
+DESCARGA: exif.webp 3180 bytes | RIFF: RIFF | WEBP: WEBP
+PROBLEMAS EN CONSOLA: 0 []
+```
+
+Cabeceras del §9.3 verificadas con `curl -I`: CSP completa (con `connect-src 'self'` y
+`form-action 'none'`), COOP `same-origin`, COEP `require-corp`, `Referrer-Policy: no-referrer`,
+`X-Content-Type-Options: nosniff`, `Permissions-Policy` y HSTS.
+
+Durante estas pruebas, Vercel activó su «Security Checkpoint» (403) contra la IP de desarrollo por el
+volumen de peticiones automatizadas. No hay ninguna regla de firewall configurada en el proyecto
+(`managedRules: null`, 0 reglas): es la mitigación automática por tasa y afecta sólo al origen de la
+ráfaga. La verificación se completó después, y en el despliegue de vista previa mientras tanto.
+
+### Git, ramas y despliegue
+
+- PR #18 (`feat/interfaz-imagen` → `staging`) merged con **squash**; PR #19 (`staging` → `main`) con
+  **rebase** → `main` en `7ad2a6d`.
+- PR #20 y #21 — arreglo de la CSP → `main` en `400da25`.
+- PR #22 y #23 — despliegue estático de `out/` → `main` en `8aa47e0`.
+- Tras cada rebase, `staging` se fuerza a `main` desactivando y restaurando su protección vía API,
+  verificando que queda **idéntica**. **Estado final: `staging` == `main` == `8aa47e0`.**
+- Se añade **«Artefacto de producción (CSP · COOP/COEP)»** a las comprobaciones obligatorias de
+  `main` y `staging`: cinco en total. Era la puerta que faltaba.
+- CI en verde en las seis PRs.
+
+---
+
+## Hitos 5–10
 
 Pendientes. Se irán rellenando al cerrar cada uno.
 
