@@ -78,6 +78,13 @@ export interface RotateOp {
   degrees: 90 | 180 | 270;
 }
 
+/** Enderezado libre: rotación por un ángulo arbitrario en grados. */
+export interface StraightenOp {
+  type: "straighten";
+  /** Ángulo en grados, en sentido horario (positivo = hacia la derecha). */
+  degrees: number;
+}
+
 /** Espejo horizontal o vertical. */
 export interface FlipOp {
   type: "flip";
@@ -99,25 +106,42 @@ export interface AdjustOp {
   brightness: number;
   contrast: number;
   saturation: number;
+  /** Temperatura: −100 (frío, azul) … +100 (cálido, ámbar). */
+  temperature: number;
+  /** Escala de grises: desaturación total cuando está activada. */
+  grayscale: boolean;
 }
 
 /** Posiciones de marca de agua (brújula + centro). */
 export type WatermarkPosition = "nw" | "n" | "ne" | "w" | "center" | "e" | "sw" | "s" | "se";
 
 /** Marca de agua de texto. */
-export interface WatermarkOp {
-  type: "watermark";
+export interface WatermarkText {
+  kind: "text";
   text: string;
   /** Opacidad 0–1. */
   opacity: number;
   position: WatermarkPosition;
 }
 
+/** Marca de agua de imagen (logo), como `data:` URL para que la receta siga siendo serializable. */
+export interface WatermarkImage {
+  kind: "image";
+  /** `data:image/…` del logo. Se decodifica en el worker. */
+  imageDataUrl: string;
+  /** Opacidad 0–1. */
+  opacity: number;
+  position: WatermarkPosition;
+}
+
+/** Marca de agua: texto o imagen. Comparten `type: "watermark"` (orden canónico). */
+export type WatermarkOp = (WatermarkText | WatermarkImage) & { type: "watermark" };
+
 /**
  * Una operación de la receta. El orden canónico es
- * `crop → rotate → flip → resize → adjust → watermark`.
+ * `crop → rotate → straighten → flip → resize → adjust → watermark`.
  */
-export type Op = CropOp | RotateOp | FlipOp | ResizeOp | AdjustOp | WatermarkOp;
+export type Op = CropOp | RotateOp | StraightenOp | FlipOp | ResizeOp | AdjustOp | WatermarkOp;
 
 /**
  * La receta: el corazón del dominio (§4.3). Serializable y pura; el worker es

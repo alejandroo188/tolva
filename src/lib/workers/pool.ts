@@ -10,8 +10,14 @@
  */
 
 import * as Comlink from "comlink";
-import type { EditRecipe } from "@/lib/domain/types";
-import type { CancelToken, ImageJobResult, ImageWorkerApi, ProgressCallback } from "./types";
+import type { EditRecipe, ExifOrientation } from "@/lib/domain/types";
+import type {
+  CancelToken,
+  ImageJobResult,
+  ImageWorkerApi,
+  ProbeResult,
+  ProgressCallback,
+} from "./types";
 
 /** Estadísticas observables del pool (para el harness y las métricas). */
 export interface PoolStats {
@@ -163,6 +169,30 @@ export class ImageWorkerPool {
     onProgress: ProgressCallback,
   ): Promise<ImageJobResult> {
     return this.runWithHandle(recipe, sourceBytes, cancel, onProgress, 1);
+  }
+
+  /**
+   * Decodifica en un worker y devuelve las dimensiones orientadas. Igual que
+   * `runJob`, usa un worker libre y repone el worker si se cae (sin reintento:
+   * la ingesta vuelve a llamar si es necesario).
+   */
+  async probe(
+    sourceBytes: ArrayBuffer,
+    mime: string,
+    exifOrientation: ExifOrientation,
+  ): Promise<ProbeResult> {
+    if (this.closed) throw new Error("El pool de workers está cerrado");
+    const handle = await this.acquire();
+    try {
+      return await this.raceWithDeath(handle, () =>
+        handle.api.probe(sourceBytes, mime, exifOrientation),
+      );
+    } catch (err) {
+      this.replaceHandle(handle);
+      throw err;
+    } finally {
+      this.release(handle);
+    }
   }
 
   private async runWithHandle(

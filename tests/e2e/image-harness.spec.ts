@@ -16,7 +16,14 @@ test("el progreso avanza de forma monótona de 0 a 1", async ({ page }) => {
     height: 360,
     ops: [
       { type: "resize", width: 320, height: 180, mode: "fill", upscale: false },
-      { type: "adjust", brightness: 10, contrast: 0, saturation: 0 },
+      {
+        type: "adjust",
+        brightness: 10,
+        contrast: 0,
+        saturation: 0,
+        temperature: 0,
+        grayscale: false,
+      },
     ],
   });
 

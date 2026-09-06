@@ -9,8 +9,13 @@
 import * as Comlink from "comlink";
 import { validateRecipe } from "@/lib/domain/recipe";
 import { detectFormat } from "@/lib/media/sniff";
-import type { EditRecipe } from "@/lib/domain/types";
-import type { CancelToken, ImageJobResult, ProgressCallback } from "@/lib/workers/types";
+import type { Dimensions, EditRecipe, ExifOrientation } from "@/lib/domain/types";
+import type {
+  CancelToken,
+  ImageJobResult,
+  ProbeResult,
+  ProgressCallback,
+} from "@/lib/workers/types";
 import { ImageWorkerPool, type PoolStats } from "@/lib/workers/pool";
 
 export interface ConvertOptions {
@@ -120,5 +125,23 @@ export class ImagePipeline {
     // sólo existe en los proxies *recibidos* vía `wrap`). Los proxies enviados se
     // liberan solos cuando el worker los recolecta (FinalizationRegistry de Comlink).
     return await pool.runJob({ ...valid, source }, bytes, cancel, onProgress);
+  }
+
+  /**
+   * Devuelve las dimensiones **orientadas** de una fuente, decodificando en un
+   * worker (nunca en el hilo principal, §4.2). El SVG se rasteriza antes porque
+   * el worker no tiene DOM.
+   */
+  async probe(
+    sourceBytes: ArrayBuffer,
+    mime: string,
+    exifOrientation: ExifOrientation = 1,
+  ): Promise<Dimensions> {
+    if (detectFormat(sourceBytes) === "svg" || mime === "image/svg+xml") {
+      const png = await rasterizeSvg(sourceBytes);
+      return this.getPool().probe(png, "image/png", 1);
+    }
+    const result: ProbeResult = await this.getPool().probe(sourceBytes, mime, exifOrientation);
+    return { width: result.width, height: result.height };
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   centeredRectForRatio,
   clampRect,
+  resizeFree,
   resizeWithLockedRatio,
   rotatedBoundingBox,
 } from "../../src/lib/domain/crop";
@@ -200,6 +201,44 @@ describe("crop.resizeWithLockedRatio — asas de borde", () => {
       bounds,
     );
     expect(r).toEqual(clampRect({ x: 0, y: 0, width: 100, height: 100 }, bounds));
+  });
+});
+
+describe("crop.resizeFree", () => {
+  const bounds = { width: 1000, height: 1000 };
+
+  it("arrastra la esquina se ampliando libremente", () => {
+    expect(
+      resizeFree({ x: 100, y: 100, width: 200, height: 200 }, "se", { x: 400, y: 350 }, bounds),
+    ).toEqual({
+      x: 100,
+      y: 100,
+      width: 300,
+      height: 250,
+    });
+  });
+
+  it("arrastra la esquina nw con el ancla fija en se", () => {
+    expect(
+      resizeFree({ x: 100, y: 100, width: 200, height: 200 }, "nw", { x: 0, y: 50 }, bounds),
+    ).toEqual({
+      x: 0,
+      y: 50,
+      width: 300,
+      height: 250,
+    });
+  });
+
+  it("nunca se sale de los límites ni colapsa por debajo de 1×1", () => {
+    const r = resizeFree(
+      { x: 100, y: 100, width: 200, height: 200 },
+      "nw",
+      { x: 2000, y: 2000 },
+      bounds,
+    );
+    expect(r.x + r.width).toBeLessThanOrEqual(1000);
+    expect(r.width).toBeGreaterThanOrEqual(1);
+    expect(r.height).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -26,15 +26,23 @@ const validRecipe: EditRecipe = {
     { type: "rotate", degrees: 90 },
     { type: "flip", axis: "horizontal" },
     { type: "resize", width: 800, height: 800, mode: "fit", upscale: false },
-    { type: "adjust", brightness: 0, contrast: 0, saturation: 0 },
-    { type: "watermark", text: "Tolva", opacity: 0.5, position: "center" },
+    { type: "adjust", brightness: 0, contrast: 0, saturation: 0, temperature: 0, grayscale: false },
+    { type: "watermark", kind: "text", text: "Tolva", opacity: 0.5, position: "center" },
   ],
   output: { format: "webp", quality: 80, stripMetadata: true },
 };
 
 describe("recipe.OP_ORDER / sortOps", () => {
   it("define el orden canónico", () => {
-    expect(OP_ORDER).toEqual(["crop", "rotate", "flip", "resize", "adjust", "watermark"]);
+    expect(OP_ORDER).toEqual([
+      "crop",
+      "rotate",
+      "straighten",
+      "flip",
+      "resize",
+      "adjust",
+      "watermark",
+    ]);
   });
 
   it("reordena las operaciones al orden canónico", () => {
@@ -124,6 +132,61 @@ describe("recipe.validateRecipe", () => {
     expect(() => validateRecipe({ ...validRecipe, ops: [{ type: "explode" }] })).toThrow(
       /desconocido/,
     );
+  });
+
+  it("acepta straighten (enderezado) y rechaza grados fuera de rango", () => {
+    const r = validateRecipe({
+      ...validRecipe,
+      ops: [{ type: "straighten", degrees: -7.5 }],
+    });
+    expect(r.ops[0]).toEqual({ type: "straighten", degrees: -7.5 });
+    expect(() =>
+      validateRecipe({ ...validRecipe, ops: [{ type: "straighten", degrees: 400 }] }),
+    ).toThrow(/straighten/);
+  });
+
+  it("acepta marca de agua de texto e imagen, y rechaza kind inválido", () => {
+    const text = validateRecipe({
+      ...validRecipe,
+      ops: [{ type: "watermark", kind: "text", text: "© Tolva", opacity: 0.4, position: "se" }],
+    });
+    expect(text.ops[0]).toMatchObject({ kind: "text", text: "© Tolva" });
+
+    const img = validateRecipe({
+      ...validRecipe,
+      ops: [
+        {
+          type: "watermark",
+          kind: "image",
+          imageDataUrl: "data:image/png;base64,AAAA",
+          opacity: 0.3,
+          position: "center",
+        },
+      ],
+    });
+    expect(img.ops[0]).toMatchObject({ kind: "image" });
+
+    expect(() =>
+      validateRecipe({
+        ...validRecipe,
+        ops: [{ type: "watermark", kind: "video", opacity: 0.5, position: "center" }],
+      }),
+    ).toThrow(/watermark/);
+  });
+
+  it("rechaza adjust sin temperatura o sin grayscale", () => {
+    expect(() =>
+      validateRecipe({
+        ...validRecipe,
+        ops: [{ type: "adjust", brightness: 0, contrast: 0, saturation: 0 }],
+      }),
+    ).toThrow(/adjust/);
+    expect(() =>
+      validateRecipe({
+        ...validRecipe,
+        ops: [{ type: "adjust", brightness: 0, contrast: 0, saturation: 0, temperature: 0 }],
+      }),
+    ).toThrow(/grayscale/);
   });
 
   it("rechaza output inválido", () => {
